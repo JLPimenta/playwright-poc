@@ -1,0 +1,42 @@
+{
+  "name": "f2m-automation",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Automação de testes da Fast2Mine — API (Data API / Grade Control) e E2E",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "test:api": "playwright test --project=api",
+    "test:e2e": "playwright test --project=e2e",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:contract": "playwright test --grep @contract",
+    "test:regression": "playwright test --grep @regression",
+    "test:no-perf": "playwright test --grep-invert @performance",
+    "test:headed": "playwright test --project=e2e --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "list": "playwright test --list",
+    "report": "playwright show-report",
+    "codegen": "playwright codegen",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{ts,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,json,md}\"",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run list"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.14.0",
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^20.17.0",
+    "dotenv": "^16.4.5",
+    "eslint": "^9.14.0",
+    "eslint-plugin-playwright": "^2.1.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.13.0",
+    "zod": "^3.23.8"
+  }
+}
