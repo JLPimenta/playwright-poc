@@ -17,6 +17,7 @@
     "test:headed": "playwright test --project=e2e --headed",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
+    "find:completed-cycles": "node tools/find-completed-cycles.mjs",
     "list": "playwright test --list",
     "report": "playwright show-report",
     "codegen": "playwright codegen",

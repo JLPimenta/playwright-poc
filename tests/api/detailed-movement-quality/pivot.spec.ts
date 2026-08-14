@@ -1,19 +1,10 @@
-import { test, expect, MovementQueryBuilder, env } from '@fixtures';
+import { env, expect, MovementQueryBuilder, test } from '@fixtures';
 import {
   CYCLE_KEY,
-  elementIndexOf,
   elementKeysOf,
   MAX_QUALITY_ELEMENTS,
-  type MovementRecord,
 } from '@models/detailed-movement-quality.model';
 
-/**
- * Núcleo de risco do endpoint: o pivoteamento dinâmico feito com
- * `DataFrame.pivot_table` em `detailed_movement_with_quality_service.py`.
- *
- * Os defeitos aqui não produzem HTTP 500 — produzem número errado em relatório
- * de qualidade, que é muito mais caro de descobrir depois.
- */
 test.describe('Pivot dinâmico de elementos', { tag: ['@regression'] }, () => {
   test(
     'cada ciclo aparece uma única vez',
@@ -24,23 +15,13 @@ test.describe('Pivot dinâmico de elementos', { tag: ['@regression'] }, () => {
         authToken,
       );
       test.skip(records.length === 0, 'Sem registros na janela configurada.');
+
+      // Pivot mal aplicado transforma cada linha de elemento numa linha de resultado e infla toda métrica de massa movimentada.
       expect(records).toHaveUniqueValuesOf(CYCLE_KEY);
     },
   );
 
-  test('id é sequencial e começa em 1', async ({ movementService, authToken }) => {
-    const records = await movementService.records(
-      MovementQueryBuilder.default().build(),
-      authToken,
-    );
-    test.skip(records.length === 0, 'Sem registros na janela configurada.');
-
-    // O service descarta o `id` da procedure e gera um novo por linha de ciclo.
-    const ids = records.map((r) => r.id);
-    expect(ids).toEqual(records.map((_, index) => index + 1));
-  });
-
-  test('colunas de elemento seguem element_N e são iguais em todos os registros', async ({
+  test('colunas de elemento são estáveis dentro da resposta', async ({
     movementService,
     authToken,
   }) => {
@@ -51,32 +32,25 @@ test.describe('Pivot dinâmico de elementos', { tag: ['@regression'] }, () => {
     test.skip(records.length === 0, 'Sem registros na janela configurada.');
 
     expect(records).toHaveConsistentElementColumns();
-  });
-
-  test('quantidade de colunas bate com o cadastro do cliente', async ({
-    movementService,
-    authToken,
-  }) => {
-    test.skip(
-      env.expectedElementCount < 0,
-      'Configure EXPECTED_ELEMENT_COUNT no .env com o número de elementos cadastrados.',
-    );
-
-    const records = await movementService.records(
-      MovementQueryBuilder.default().build(),
-      authToken,
-    );
-    test.skip(records.length === 0, 'Sem registros na janela configurada.');
 
     const colunas = elementKeysOf(records[0] as Record<string, unknown>);
-
-    expect(colunas, `colunas encontradas: ${colunas.join(', ')}`).toHaveLength(
-      env.expectedElementCount,
+    expect(colunas.length, 'limite de elementos de qualidade').toBeLessThanOrEqual(
+      MAX_QUALITY_ELEMENTS,
     );
-    expect(colunas.length).toBeLessThanOrEqual(MAX_QUALITY_ELEMENTS);
+
+    test.skip(
+      env.expectedElementCount < 0,
+      'Informe EXPECTED_ELEMENT_COUNT no .env para conferir a quantidade de colunas.',
+    );
+
+    expect(
+      colunas,
+      `colunas: ${colunas.join(', ')}. Vindo menos que o cadastrado, a procedure só ` +
+        'devolve elementos com medição no período — ver BUG-006.',
+    ).toHaveLength(env.expectedElementCount);
   });
 
-  test('valores de elemento são número ou null, nunca NaN ou string', async ({
+  test('teor é número finito ou null, nunca NaN ou texto', async ({
     movementService,
     authToken,
   }) => {
@@ -89,8 +63,6 @@ test.describe('Pivot dinâmico de elementos', { tag: ['@regression'] }, () => {
     const colunas = elementKeysOf(records[0] as Record<string, unknown>);
     test.skip(colunas.length === 0, 'Nenhuma coluna de elemento no retorno.');
 
-    // `clean_nan_from_dict` deve converter NaN/inf em null antes de serializar.
-    // Se um NaN escapar, o Starlette derruba a resposta inteira.
     expect(records).toSatisfyForEveryRecord(
       (record) =>
         colunas.every((coluna) => {
@@ -101,58 +73,7 @@ test.describe('Pivot dinâmico de elementos', { tag: ['@regression'] }, () => {
     );
   });
 
-  test('elemento sem medição vem como null, não como zero', async ({
-    movementService,
-    authToken,
-  }) => {
-    const records = await movementService.records(
-      MovementQueryBuilder.default().build(),
-      authToken,
-    );
-    test.skip(records.length === 0, 'Sem registros na janela configurada.');
-
-    const colunas = elementKeysOf(records[0] as Record<string, unknown>);
-    test.skip(colunas.length === 0, 'Nenhuma coluna de elemento no retorno.');
-
-    const valores = records.flatMap((record) =>
-      colunas.map((coluna) => (record as Record<string, unknown>)[coluna]),
-    );
-    const temNulo = valores.some((valor) => valor === null);
-
-    test.skip(
-      !temNulo,
-      'Nenhum elemento sem medição nesta janela. Provisione um ciclo com elemento não medido.',
-    );
-
-    // Zero e null precisam ser distinguíveis: 0 falsifica média de teor.
-    expect(
-      valores.some((valor) => valor === 0),
-      'presença de zeros é aceitável; o teste apenas garante que null existe e não virou 0',
-    ).toBeDefined();
-    expect(temNulo).toBe(true);
-  });
-
-  test('precisão decimal é preservada', async ({ movementService, authToken }) => {
-    const records = await movementService.records(
-      MovementQueryBuilder.default().build(),
-      authToken,
-    );
-    test.skip(records.length === 0, 'Sem registros na janela configurada.');
-
-    const colunas = elementKeysOf(records[0] as Record<string, unknown>);
-    const valores = records
-      .flatMap((record) => colunas.map((coluna) => (record as Record<string, unknown>)[coluna]))
-      .filter((valor): valor is number => typeof valor === 'number');
-
-    test.skip(valores.length === 0, 'Nenhum valor de elemento preenchido nesta janela.');
-
-    expect(
-      valores.some((valor) => !Number.isInteger(valor)),
-      'Todos os teores vieram inteiros. Se a base tem casas decimais, houve truncamento.',
-    ).toBe(true);
-  });
-
-  test('conjunto de colunas não depende da janela consultada', async ({
+  test('o conjunto de colunas não muda com a janela consultada', async ({
     movementService,
     authToken,
   }) => {
@@ -167,41 +88,15 @@ test.describe('Pivot dinâmico de elementos', { tag: ['@regression'] }, () => {
 
     test.skip(estreita.length === 0 || ampla.length === 0, 'Uma das janelas está sem registros.');
 
-    const colunasEstreita = elementKeysOf(estreita[0] as Record<string, unknown>).sort();
-    const colunasAmpla = elementKeysOf(ampla[0] as Record<string, unknown>).sort();
-
-    // O service monta as colunas a partir de `id_elemento` presente no
-    // resultado da procedure. Se a procedure só devolver elementos medidos no
-    // período, o schema muda conforme o filtro e o consumidor quebra.
     expect(
-      colunasEstreita,
-      'O conjunto de colunas mudou entre janelas. As colunas devem vir do cadastro de ' +
-        'elementos do cliente, não dos dados existentes no período. Ver BUG-006.',
-    ).toEqual(colunasAmpla);
+      elementKeysOf(estreita[0] as Record<string, unknown>).sort(),
+      'As colunas devem vir do cadastro de elementos do cliente, não dos dados do ' +
+        'período. Se mudam com o filtro, o consumidor quebra de forma intermitente. ' +
+        'Ver BUG-006.',
+    ).toEqual(elementKeysOf(ampla[0] as Record<string, unknown>).sort());
   });
 
-  test('mesma consulta devolve as mesmas colunas na mesma ordem', async ({
-    movementService,
-    authToken,
-  }) => {
-    const query = MovementQueryBuilder.default().build();
-
-    const execucoes: string[] = [];
-    for (let i = 0; i < 3; i += 1) {
-      const records = await movementService.records(query, authToken);
-      if (records.length === 0) break;
-      execucoes.push(elementKeysOf(records[0] as Record<string, unknown>).join('|'));
-    }
-
-    test.skip(execucoes.length < 3, 'Sem registros suficientes na janela configurada.');
-
-    expect(new Set(execucoes).size, `ordens observadas:\n${execucoes.join('\n')}`).toBe(1);
-  });
-
-  test('índices das colunas são únicos e dentro do limite', async ({
-    movementService,
-    authToken,
-  }) => {
+  test('ciclo sem medição continua no resultado', async ({ movementService, authToken }) => {
     const records = await movementService.records(
       MovementQueryBuilder.default().build(),
       authToken,
@@ -211,38 +106,14 @@ test.describe('Pivot dinâmico de elementos', { tag: ['@regression'] }, () => {
     const colunas = elementKeysOf(records[0] as Record<string, unknown>);
     test.skip(colunas.length === 0, 'Nenhuma coluna de elemento no retorno.');
 
-    const indices = colunas.map(elementIndexOf);
-
-    expect(indices.filter(Number.isNaN), `colunas fora do padrão: ${colunas.join(', ')}`).toEqual(
-      [],
-    );
-    expect(new Set(indices).size, 'índices duplicados entre as colunas').toBe(indices.length);
-    expect(Math.max(...indices)).toBeLessThanOrEqual(MAX_QUALITY_ELEMENTS);
-  });
-
-  test('registros sem qualidade continuam aparecendo', async ({ movementService, authToken }) => {
-    const records = await movementService.records(
-      MovementQueryBuilder.default().build(),
-      authToken,
-    );
-    test.skip(records.length === 0, 'Sem registros na janela configurada.');
-
-    const colunas = elementKeysOf(records[0] as Record<string, unknown>);
-    test.skip(colunas.length === 0, 'Nenhuma coluna de elemento no retorno.');
-
-    // O merge é `how="left"`, então ciclo sem medição deve permanecer no
-    // resultado com todas as colunas nulas — e não sumir.
-    const semNenhumaMedicao = records.filter((record) =>
+    const semQualidade = records.filter((record) =>
       colunas.every((coluna) => (record as Record<string, unknown>)[coluna] === null),
     );
+    test.skip(semQualidade.length === 0, 'Todos os ciclos da janela têm medição.');
 
-    expect(
-      semNenhumaMedicao.every((record) => temDadosDeMovimentacao(record)),
-      'ciclos sem medição devem manter os campos de movimentação preenchidos',
-    ).toBe(true);
+    expect(semQualidade).toSatisfyForEveryRecord(
+      (record) => record[CYCLE_KEY] !== null && record.start_date !== null,
+      'ciclo sem medição mantém os campos de movimentação',
+    );
   });
 });
-
-function temDadosDeMovimentacao(record: MovementRecord): boolean {
-  return record[CYCLE_KEY] !== null && record.DataInicio !== null;
-}

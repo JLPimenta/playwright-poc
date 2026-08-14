@@ -41,10 +41,12 @@ const envSchema = z.object({
   API_USERNAME: z.string().default(''),
   API_PASSWORD: z.string().default(''),
 
-  DATA_IN: z.string().default('01-08-2026 00:00:00'),
-  DATA_FI: z.string().default('01-08-2026 23:59:59'),
-  DATA_IN_WIDE: z.string().default('01-07-2026 00:00:00'),
-  DATA_FI_WIDE: z.string().default('31-07-2026 23:59:59'),
+  DATA_IN: z.string().default('01-01-2026 00:00:00'),
+  DATA_FI: z.string().default('01-01-2026 23:59:59'),
+  DATA_IN_WIDE: z.string().default('01-01-2026 00:00:00'),
+  DATA_FI_WIDE: z.string().default('31-01-2026 23:59:59'),
+  /** Dia dd-MM-YYYY com massa conhecida, usado para provar a leitura dia-mês. */
+  DATA_DDMM_DAY: z.string().default('01-02-2026'),
 
   EQUIP_IDS: csv,
   EQUIP_TYPE_IDS: csv,
@@ -57,6 +59,8 @@ const envSchema = z.object({
 
   RATE_LIMIT_PER_MINUTE: int(10),
   RETRY_ON_RATE_LIMIT: bool,
+  /** Timeout por requisição HTTP. Deve ser bem menor que o timeout do teste. */
+  REQUEST_TIMEOUT_MS: int(15_000),
 
   SLA_MS: int(3000),
   SLA_MS_WIDE: int(10000),
@@ -92,6 +96,8 @@ export const env = {
   windows: {
     default: { dataIn: raw.DATA_IN, dataFi: raw.DATA_FI },
     wide: { dataIn: raw.DATA_IN_WIDE, dataFi: raw.DATA_FI_WIDE },
+    /** Dia isolado, em dd-MM-YYYY, para o teste de ambiguidade de formato. */
+    ddmmDay: raw.DATA_DDMM_DAY,
   },
 
   /** Ids conhecidos do ambiente, usados para provar que cada filtro tem efeito. */
@@ -111,6 +117,13 @@ export const env = {
     perMinute: raw.RATE_LIMIT_PER_MINUTE,
     retry: raw.RETRY_ON_RATE_LIMIT,
   },
+
+  /**
+   * Teto por requisição. O default do Playwright é 30s — com dois pedidos numa
+   * sequência isso já consome o timeout do teste, e a falha aparece como
+   * "Test timeout exceeded" em vez de apontar a requisição que travou.
+   */
+  requestTimeoutMs: raw.REQUEST_TIMEOUT_MS,
 
   sla: {
     defaultMs: raw.SLA_MS,

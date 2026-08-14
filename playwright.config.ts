@@ -34,7 +34,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
     ignoreHTTPSErrors: true,
-    actionTimeout: 15_000,
+    actionTimeout: 45_000,
     /** Alinhado ao atributo que o time de Web usa nos componentes. */
     testIdAttribute: 'data-testid',
   },

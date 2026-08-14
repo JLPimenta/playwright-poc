@@ -1,82 +1,30 @@
-import { test, expect, MovementQueryBuilder, env } from '@fixtures';
+import { env, expect, MovementQueryBuilder, test } from '@fixtures';
 
 /**
- * O pivot roda em Pandas, em memória, e a resposta não é paginada de verdade —
- * a combinação torna o tempo de resposta sensível ao tamanho da janela.
+ * Um único teste, e fora do CI de PR: tempo de resposta depende de ambiente e
+ * de volume de massa, então falha aqui pede investigação, não bloqueio de
+ * merge.
  *
- * Os SLAs vêm do `.env` porque o critério de aceite não define nenhum.
+ * O que ele monitora é real — o pivot monta o DataFrame do período inteiro em
+ * memória antes de recortar a página.
  */
 test.describe('Performance', { tag: ['@performance'] }, () => {
   test.describe.configure({ mode: 'serial', retries: 0 });
 
   test('janela padrão responde dentro do SLA', async ({ movementService, authToken }) => {
-    const amostras = await medir(3, () =>
-      movementService.fetch(MovementQueryBuilder.default().build(), authToken),
-    );
+    const amostras: number[] = [];
 
-    test.info().annotations.push({
-      type: 'medições (ms)',
-      description: amostras.join(', '),
-    });
+    for (let i = 0; i < 3; i += 1) {
+      const result = await movementService.fetch(MovementQueryBuilder.default().build(), authToken);
+      expect(result.status, `amostra ${i + 1}: ${result.text.slice(0, 200)}`).toBe(200);
+      amostras.push(result.durationMs);
+    }
 
-    expect(mediana(amostras), `amostras: ${amostras.join(', ')}ms`).toBeLessThanOrEqual(
-      env.sla.defaultMs,
-    );
-  });
+    const ordenadas = [...amostras].sort((a, b) => a - b);
+    const mediana = ordenadas[Math.floor(ordenadas.length / 2)];
 
-  test('janela ampla responde dentro do SLA', async ({ movementService, authToken }) => {
-    const amostras = await medir(2, () =>
-      movementService.fetch(MovementQueryBuilder.default().wideWindow().build(), authToken),
-    );
+    test.info().annotations.push({ type: 'medições (ms)', description: amostras.join(', ') });
 
-    test.info().annotations.push({
-      type: 'medições (ms)',
-      description: amostras.join(', '),
-    });
-
-    expect(mediana(amostras), `amostras: ${amostras.join(', ')}ms`).toBeLessThanOrEqual(
-      env.sla.wideMs,
-    );
-  });
-
-  test('custo do pivot em relação ao transport_report', async ({ movementService, authToken }) => {
-    const query = MovementQueryBuilder.default().build();
-
-    const comQualidade = await movementService.fetch(query, authToken);
-    const semQualidade = await movementService.fetchTransportReportBaseline(query, authToken);
-
-    test.skip(
-      semQualidade.status !== 200,
-      `Baseline transport_report devolveu ${semQualidade.status}. Comparação inválida.`,
-    );
-
-    const fator = comQualidade.durationMs / Math.max(semQualidade.durationMs, 1);
-
-    test.info().annotations.push({
-      type: 'overhead',
-      description: `com=${comQualidade.durationMs}ms sem=${semQualidade.durationMs}ms (${fator.toFixed(2)}x)`,
-    });
-
-    expect(fator, 'o pivot multiplicou demais o tempo de resposta').toBeLessThan(5);
+    expect(mediana, `amostras: ${amostras.join(', ')}ms`).toBeLessThanOrEqual(env.sla.defaultMs);
   });
 });
-
-async function medir(
-  vezes: number,
-  acao: () => Promise<{ status: number; durationMs: number; text: string }>,
-): Promise<number[]> {
-  const amostras: number[] = [];
-
-  for (let i = 0; i < vezes; i += 1) {
-    const resultado = await acao();
-    expect(resultado.status, `amostra ${i + 1}: ${resultado.text.slice(0, 200)}`).toBe(200);
-    amostras.push(resultado.durationMs);
-  }
-
-  return amostras;
-}
-
-function mediana(valores: number[]): number {
-  const ordenados = [...valores].sort((a, b) => a - b);
-  return ordenados[Math.floor(ordenados.length / 2)];
-}

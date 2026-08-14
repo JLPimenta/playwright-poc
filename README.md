@@ -339,6 +339,63 @@ test('filtra movimentação por período', async ({ relatorioPage }) => {
 
 ---
 
+## O que merece um teste automatizado
+
+Suíte grande não é suíte boa. Cada teste tem custo permanente: roda em todo PR,
+quebra quando o código muda, e precisa ser lido e mantido por alguém. Um teste
+que não muda nenhuma decisão quando falha é custo puro.
+
+**Um cenário entra na suíte quando o defeito que ele pega é caro e silencioso.**
+Caro para o cliente, e silencioso o bastante para passar por code review e por
+um teste manual rápido.
+
+Antes de escrever, responda:
+
+| Pergunta                                                | Se a resposta for não      |
+| ------------------------------------------------------- | -------------------------- |
+| O cliente sente esse defeito?                           | Não escreva                |
+| O defeito passaria despercebido sem este teste?         | Não escreva                |
+| Já existe outro teste ou o schema que pegaria isso?     | Não escreva                |
+| A falha vai dizer o que fazer, não só que algo quebrou? | Reescreva a asserção antes |
+
+### Casos que quase sempre não valem um teste
+
+**O schema já valida.** `fetchValid` roda a resposta inteira pelo Zod. Testar
+"o campo X é string ou null" repete o schema em outro lugar — e agora são dois
+lugares para atualizar quando o contrato mudar.
+
+**É comportamento do framework.** `page_size` acima do máximo retorna 422 porque
+o FastAPI tem `le=1000`. Um teste basta para fixar o contrato; seis, um por
+valor inválido, testam o Pydantic.
+
+**Multiplicação por dimensão equivalente.** Os seis filtros de lista percorrem o
+mesmo caminho no código. Seis testes idênticos custam seis vezes mais e informam
+quase o mesmo. Varra as dimensões **dentro** de um teste, com `expect.soft` e
+mensagem que diga qual falhou.
+
+**Heurística sem critério.** "Menos de 90% dos teores são zero" parece um teste,
+mas o limiar é arbitrário: ou acusa sem defeito, ou passa com defeito. Quando a
+verificação precisa do banco para ser conclusiva, ela é um cenário manual — e
+deve estar documentada como tal.
+
+**Detalhe interno sem efeito para o cliente.** Como o `id` é numerado entre
+páginas não muda decisão de ninguém.
+
+### Onde vale insistir
+
+Concentre esforço onde o defeito **não gera erro** e chega ao cliente como
+número plausível: cálculo, agregação, filtro que silenciosamente não filtra,
+paginação que perde registro. No endpoint de qualidade, é o pivot — por isso ele
+tem mais testes que autenticação e paginação somadas.
+
+### Quando a suíte crescer
+
+Cada teste novo justifica o custo, ou algum outro sai. Se um arquivo passar de
+uma dúzia de testes, provavelmente há multiplicação por dimensão equivalente
+escondida ali.
+
+---
+
 ## Convenções
 
 ### Nomenclatura
@@ -394,8 +451,27 @@ test.skip(records.length === 0, 'Janela DATA_IN/DATA_FI sem registros. Ajuste o 
 ```
 
 Massa ausente é problema de ambiente, não defeito do produto. Falhar por isso
-treina o time a ignorar vermelho. Os skips funcionam como lista de trabalho de
-provisionamento: rode a suíte e leia os motivos.
+treina o time a ignorar vermelho.
+
+O custo dessa escolha é que uma suíte com muitos skips parece saudável sem ser.
+Por isso o motivo do skip precisa ser **acionável**: dizer qual variável ajustar
+ou qual massa provisionar, não só "sem dados".
+
+```ts
+// Bom: quem lê sabe o que fazer
+test.skip(records.length === 0, 'Janela DATA_IN/DATA_FI sem registros. Ajuste o .env.');
+
+// Ruim: informa que pulou, não por quê nem como resolver
+test.skip(records.length === 0);
+```
+
+Rode `npm test` e leia a coluna de skips: ela é a lista de trabalho de
+provisionamento de ambiente. A causa mais comum é a janela `DATA_IN`/`DATA_FI`
+não conter movimentação — sozinha ela derruba a maior parte da suíte, porque
+quase toda asserção precisa de pelo menos um registro.
+
+Só use `test.skip` para condição de ambiente ou massa. Skip por regra de
+negócio é teste que deveria existir e não existe.
 
 ---
 

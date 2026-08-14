@@ -2,70 +2,63 @@ import { z } from 'zod';
 import { paginationSchema } from './pagination.model';
 
 /**
- * Contrato REAL do endpoint, extraído de
+ * Contrato do endpoint, extraído de
  * `models/Response_models.py::QualityDetailedMovementModel`.
- *
- * Atenção: estes nomes divergem por completo do exemplo do critério de aceite
- * (que usa `datetime_start`, `equipment_type`, `cycle_time`...). Ver BUG-002.
- * As asserções seguem o código implementado, por decisão registrada no README.
  */
 
-/** Campos inteiros. */
 export const INT_FIELDS = [
   'id',
   'transport_report_id',
   'id_truck',
-  'Dia',
-  'Mes',
-  'Ano',
-  'Hora_Basc',
+  'day',
+  'month',
+  'year',
+  'dump_hour',
 ] as const;
 
-/** Campos serializados pelo Pydantic como `date` — string "YYYY-MM-DD". */
-export const DATE_FIELDS = ['DataInicio', 'DataFim'] as const;
+/** `date` — string "YYYY-MM-DD". */
+export const DATE_FIELDS = ['start_date', 'end_date'] as const;
 
-/** Campos serializados pelo Pydantic como `time` — string "HH:MM:SS". */
-export const TIME_FIELDS = ['HoraInicio', 'HoraFim'] as const;
+/** `time` — string "HH:MM:SS". */
+export const TIME_FIELDS = ['start_time', 'end_time'] as const;
 
-/** Campos textuais. */
 export const STRING_FIELDS = [
-  'Turno',
-  'Turma',
-  'matricula',
-  'Operador',
-  'grupo_operador',
-  'Tipo_Equipamento',
-  'Frota',
-  'Caminhao',
-  'Carga',
-  'Frota_Carga',
-  'Origem_Area_CM',
-  'Origem_Sub_Area_CM',
-  'Destino_Area_CM',
-  'Destino_Sub_Area_CM',
-  'Material_CM',
-  'Grupo_Material',
-  'Tipo_Movimentacao',
-  'Tipo_Ciclo',
+  'shift',
+  'team',
+  'registration_id',
+  'operator',
+  'operator_group',
+  'equipment_type',
+  'fleet',
+  'truck',
+  'load_equipment',
+  'load_fleet',
+  'origin_area',
+  'origin_subarea',
+  'destination_area',
+  'destination_subarea',
+  'material',
+  'material_group',
+  'movement_type',
+  'cycle_type',
 ] as const;
 
-/** Campos numéricos decimais. */
 export const FLOAT_FIELDS = [
-  'Balanca_Manager',
-  'Balanca_Calculada',
-  'Balanca_Caminhao',
-  'Temp_Ciclo',
-  'Temp_Fila_Carga',
-  'Temp_Carga',
-  'Temp_Fila_Basculamento',
-  'Temp_Basculamento',
-  'Temp_Vazio',
-  'Temp_Cheio',
-  'Temp_Manobra_Vazio',
-  'Temp_Manobra_Cheio',
-  'Dist_Vazio',
-  'Dist_Cheio',
-  'DMT',
+  'scale_manager_weight',
+  'calculated_weight',
+  'truck_scale_weight',
+  'cycle_time',
+  'load_queue_time',
+  'load_time',
+  'dump_queue_time',
+  'dump_time',
+  'empty_time',
+  'full_time',
+  'empty_maneuver_time',
+  'full_maneuver_time',
+  'empty_distance',
+  'full_distance',
+  'dmt',
   'load_lat',
   'load_lon',
   'unload_lat',
@@ -76,23 +69,22 @@ export const FLOAT_FIELDS = [
   'unload_utm_y',
 ] as const;
 
-/** Durações e distâncias: não faz sentido serem negativas. */
 export const NON_NEGATIVE_FIELDS = [
-  'Temp_Ciclo',
-  'Temp_Fila_Carga',
-  'Temp_Carga',
-  'Temp_Fila_Basculamento',
-  'Temp_Basculamento',
-  'Temp_Vazio',
-  'Temp_Cheio',
-  'Temp_Manobra_Vazio',
-  'Temp_Manobra_Cheio',
-  'Dist_Vazio',
-  'Dist_Cheio',
-  'DMT',
+  'cycle_time',
+  'load_queue_time',
+  'load_time',
+  'dump_queue_time',
+  'dump_time',
+  'empty_time',
+  'full_time',
+  'empty_maneuver_time',
+  'full_maneuver_time',
+  'empty_distance',
+  'full_distance',
+  'dmt',
 ] as const;
 
-/** Todos os campos fixos do contrato (52). Qualquer chave fora desta lista é coluna pivotada. */
+/** Todos os campos fixos do contrato. */
 export const FIXED_FIELDS: readonly string[] = [
   ...INT_FIELDS,
   ...DATE_FIELDS,
@@ -127,9 +119,18 @@ export const detailedMovementResponseSchema = z.object({
 export type MovementRecord = z.infer<typeof movementRecordSchema>;
 export type DetailedMovementResponse = z.infer<typeof detailedMovementResponseSchema>;
 
+/** Limite de elementos de qualidade — `MAX_QUALITY_ELEMENTS` no service da API. */
 export const MAX_QUALITY_ELEMENTS = 60;
-/** Chave que identifica o ciclo de verdade. `id` é recontado a cada resposta. */
+
+/** Chave que identifica o ciclo de verdade. `id` é recontado a cada consulta. */
 export const CYCLE_KEY = 'transport_report_id';
+
+/** Limites de paginação declarados na rota (`ge`/`le` dos Query params). */
+export const PAGINATION_LIMITS = {
+  defaultPageSize: 100,
+  maxPageSize: 1000,
+  minPage: 1,
+} as const;
 
 const FIXED_SET = new Set(FIXED_FIELDS);
 
@@ -140,8 +141,3 @@ export function elementKeysOf(record: Record<string, unknown>): string[] {
 
 /** Padrão gerado pelo `rename_map` do service: `el7` vira `element_7`. */
 export const ELEMENT_KEY_PATTERN = /^element_\d+$/;
-
-export function elementIndexOf(key: string): number {
-  const match = ELEMENT_KEY_PATTERN.exec(key);
-  return match ? Number(key.slice('element_'.length)) : Number.NaN;
-}

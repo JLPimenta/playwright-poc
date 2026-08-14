@@ -11,12 +11,20 @@ export interface RequestOptions {
 }
 
 /**
+ * Espera máxima acumulada por requisição ao lidar com 429.
+ *
+ * Precisa ser bem menor que o timeout do teste: um spec que faz N chamadas em
+ * sequência gastaria N × este valor no pior caso.
+ */
+const RETRY_BUDGET_MS = 6_000;
+
+/**
  * Camada única de transporte HTTP.
  *
  * Responsabilidades:
  *  - montar a requisição (query string, headers, auth);
  *  - medir o tempo;
- *  - tratar 429 quando o retry estiver habilitado;
+ *  - tratar 429 quando o retry estiver habilitado, dentro de um orçamento;
  *  - anexar requisição/resposta ao relatório do Playwright.
  */
 export class HttpClient {
@@ -35,21 +43,45 @@ export class HttpClient {
     path: string,
     options: RequestOptions = {},
   ): Promise<HttpResult<T>> {
-    const maxAttempts = env.rateLimit.retry ? 4 : 1;
-
     let result = await this.dispatch<T>(method, path, options);
 
-    for (let attempt = 1; attempt < maxAttempts && result.status === 429; attempt += 1) {
-      const waitMs = this.retryAfterMs(result.headers, attempt);
-      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    if (!env.rateLimit.retry) return result;
+
+    // Orçamento total de espera por requisição. Sem esse teto, um teste que
+    // faz várias chamadas em sequência estoura o timeout do Playwright antes
+    // de qualquer asserção rodar — e a falha vira "Test timeout exceeded", que
+    // não diz nada sobre a causa real ter sido rate limit.
+    let gastoMs = 0;
+
+    for (let attempt = 1; result.status === 429 && gastoMs < RETRY_BUDGET_MS; attempt += 1) {
+      const esperaMs = Math.min(
+        this.retryAfterMs(result.headers, attempt),
+        RETRY_BUDGET_MS - gastoMs,
+      );
+      if (esperaMs <= 0) break;
+
+      await new Promise((resolve) => setTimeout(resolve, esperaMs));
+      gastoMs += esperaMs;
 
       result = await this.dispatch<T>(method, path, options);
+    }
+
+    if (result.status === 429) {
+      this.annotate(
+        'rate limit',
+        `${method} ${path} continuou em 429 após ${(gastoMs / 1000).toFixed(1)}s de espera. ` +
+          'Suba LIMIT_REQUESTS no .env da API ou reduza a concorrência da suíte.',
+      );
     }
 
     return result;
   }
 
-  private async dispatch<T>(method: string, path: string, options: RequestOptions): Promise<HttpResult<T>> {
+  private async dispatch<T>(
+    method: string,
+    path: string,
+    options: RequestOptions,
+  ): Promise<HttpResult<T>> {
     const startedAt = Date.now();
 
     const raw = await this.request.fetch(path, {
@@ -62,6 +94,7 @@ export class HttpClient {
       ...(options.form ? { form: options.form } : {}),
       ...(options.data !== undefined ? { data: options.data } : {}),
       failOnStatusCode: false,
+      timeout: env.requestTimeoutMs,
     });
 
     const durationMs = Date.now() - startedAt;
@@ -89,7 +122,12 @@ export class HttpClient {
   }
 
   /** Anexa a troca HTTP ao relatório, o que remove a necessidade de console.log nos testes. */
-  private attachToReport(method: string, path: string, options: RequestOptions, result: HttpResult<unknown>): void {
+  private attachToReport(
+    method: string,
+    path: string,
+    options: RequestOptions,
+    result: HttpResult<unknown>,
+  ): void {
     if (!env.logHttp) return;
 
     try {
@@ -111,11 +149,20 @@ export class HttpClient {
     }
   }
 
+  /** Registra uma anotação no relatório do teste corrente, se houver um. */
+  private annotate(type: string, description: string): void {
+    try {
+      test.info().annotations.push({ type, description });
+    } catch {
+      // Fora do contexto de um teste. Silenciar é correto aqui.
+    }
+  }
+
   private retryAfterMs(headers: Record<string, string>, attempt: number): number {
     const header = headers['retry-after'];
     const seconds = header ? Number(header) : NaN;
     if (Number.isFinite(seconds)) return seconds * 1000;
-    return Math.min(60_000, 2_000 * 2 ** attempt);
+    return 500 * 2 ** attempt;
   }
 }
 

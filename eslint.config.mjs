@@ -37,6 +37,24 @@ export default tseslint.config(
   },
 
   {
+    // Ferramentas de diagnóstico rodam direto no Node, fora do runner.
+    files: ['tools/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        fetch: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        AbortController: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        Buffer: 'readonly',
+      },
+    },
+  },
+
+  {
     files: ['**/*.ts'],
     rules: {
       '@typescript-eslint/no-unused-vars': [

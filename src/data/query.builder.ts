@@ -74,6 +74,18 @@ export class MovementQueryBuilder {
     return this;
   }
 
+  /** Paginação. Omitir os dois usa o default da API (página 1, 100 registros). */
+  paginate(page: number | string, pageSize?: number | string): this {
+    this.query.page = page;
+    if (pageSize !== undefined) this.query.page_size = pageSize;
+    return this;
+  }
+
+  pageSize(value: number | string): this {
+    this.query.page_size = value;
+    return this;
+  }
+
   build(): DetailedMovementQuery {
     return { ...this.query };
   }
@@ -98,12 +110,12 @@ export type ListFilter = (typeof LIST_FILTERS)[number];
  * textual correspondente — é o que o contrato atual permite. Ver BUG-002.
  */
 export const FILTER_TO_FIELD: Record<ListFilter, string> = {
-  id_equips: 'Caminhao',
-  id_equip_types: 'Tipo_Equipamento',
-  id_equip_groups: 'Frota',
-  id_turns: 'Turno',
-  id_material_groups: 'Grupo_Material',
-  id_materials: 'Material_CM',
+  id_equips: 'truck',
+  id_equip_types: 'equipment_type',
+  id_equip_groups: 'fleet',
+  id_turns: 'shift',
+  id_material_groups: 'material_group',
+  id_materials: 'material',
 };
 
 /** Ids configurados no `.env` para um filtro. Vazio significa fixture ausente. */
@@ -114,7 +126,7 @@ export function idsFor(filter: ListFilter): readonly string[] {
 /** Payloads de injeção usados nos testes de robustez dos filtros. */
 export const INJECTION_PAYLOADS = [
   "1' OR '1'='1",
-  '1; DROP TABLE transport_report--',
+  '1; DROP TABLE dbo.transport_report--',
   '1 UNION SELECT null,null,null--',
   "'; EXEC dbo.rpt_detailed_movement_with_quality--",
 ] as const;
