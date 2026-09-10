@@ -112,7 +112,7 @@ test.describe('Pivot dinâmico de elementos', { tag: ['@regression'] }, () => {
     test.skip(semQualidade.length === 0, 'Todos os ciclos da janela têm medição.');
 
     expect(semQualidade).toSatisfyForEveryRecord(
-      (record) => record[CYCLE_KEY] !== null && record.start_date !== null,
+      (record) => record[CYCLE_KEY] !== null && record.datetime_start !== null,
       'ciclo sem medição mantém os campos de movimentação',
     );
   });

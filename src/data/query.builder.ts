@@ -105,17 +105,17 @@ export type ListFilter = (typeof LIST_FILTERS)[number];
 /**
  * Campo do registro afetado por cada filtro.
  *
- * O modelo de resposta não expõe id para a maioria das dimensões (só
- * `id_truck` e `transport_report_id`), então a verificação é feita pelo campo
- * textual correspondente — é o que o contrato atual permite. Ver BUG-002.
+ * O modelo passou a expor o `*_id` de cada dimensão, então a verificação
+ * compara id com id. Antes só dava para comparar pelo campo textual, que não
+ * distingue dois registros de mesmo nome e ids diferentes.
  */
 export const FILTER_TO_FIELD: Record<ListFilter, string> = {
-  id_equips: 'truck',
-  id_equip_types: 'equipment_type',
-  id_equip_groups: 'fleet',
-  id_turns: 'shift',
-  id_material_groups: 'material_group',
-  id_materials: 'material',
+  id_equips: 'equipment_id',
+  id_equip_types: 'equipment_type_id',
+  id_equip_groups: 'equipment_group_id',
+  id_turns: 'turn_id',
+  id_material_groups: 'material_group_id',
+  id_materials: 'material_id',
 };
 
 /** Ids configurados no `.env` para um filtro. Vazio significa fixture ausente. */

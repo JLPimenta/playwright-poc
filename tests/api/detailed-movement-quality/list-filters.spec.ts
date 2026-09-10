@@ -72,20 +72,49 @@ test.describe('Filtros de lista', { tag: ['@regression'] }, () => {
     expect((result.body as { Result: unknown[] }).Result).toEqual([]);
   });
 
-  test('only_completed_cycles=true devolve só ciclos sem exceção', async ({
+  test('only_completed_cycles restringe por exception_type', async ({
     movementService,
     authToken,
   }) => {
-    const response = await movementService.fetchValid(
+    const todos = await movementService.fetchValid(
+      MovementQueryBuilder.default().onlyCompletedCycles(false).build(),
+      authToken,
+    );
+    test.skip(todos.Result.length === 0, 'Sem registros na janela configurada.');
+
+    const completos = await movementService.fetchValid(
       MovementQueryBuilder.default().onlyCompletedCycles(true).build(),
       authToken,
     );
-    test.skip(response.Result.length === 0, 'Nenhum ciclo completo na janela configurada.');
 
-    // A procedure filtra por `exception_type is null`, e `cycle_type`
-    expect(response.Result).toSatisfyForEveryRecord(
-      (record) => record.cycle_type === null,
-      'cycle_type é null quando only_completed_cycles=true',
+    const rotulo = (registro: (typeof todos.Result)[number]) =>
+      registro.exception_type === null ? '(null)' : String(registro.exception_type);
+
+    const tiposTodos = new Set(todos.Result.map(rotulo));
+    const tiposCompletos = new Set(completos.Result.map(rotulo));
+
+    expect(
+      completos.Pagination.total_records,
+      'ciclos completos não podem exceder o total',
+    ).toBeLessThanOrEqual(todos.Pagination.total_records);
+
+    test.skip(
+      tiposTodos.size < 2,
+      `A janela só tem um valor de exception_type (${[...tiposTodos].join(', ')}). ` +
+        'Sem variedade não dá para provar que o filtro restringe.',
     );
+
+    const forasteiros = [...tiposCompletos].filter((tipo) => !tiposTodos.has(tipo));
+    expect(
+      forasteiros,
+      'o filtro devolveu exception_type que não existe no conjunto total',
+    ).toEqual([]);
+
+    expect(
+      tiposCompletos.size,
+      `only_completed_cycles=true não restringiu nada: continuam ${tiposCompletos.size} ` +
+        `valores distintos de exception_type (${[...tiposCompletos].join(', ')}). ` +
+        'Confirme com o time qual valor representa ciclo completo.',
+    ).toBeLessThan(tiposTodos.size);
   });
 });

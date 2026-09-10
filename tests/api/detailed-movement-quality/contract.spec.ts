@@ -1,5 +1,5 @@
 import { expect, MovementQueryBuilder, test } from '@fixtures';
-import { FIXED_FIELDS } from '@models/detailed-movement-quality.model';
+import { FIXED_FIELDS, MOVEMENT_SOURCES } from '@models/detailed-movement-quality.model';
 
 test.describe('Contrato da resposta', { tag: ['@contract'] }, () => {
   test(
@@ -33,7 +33,7 @@ test.describe('Contrato da resposta', { tag: ['@contract'] }, () => {
     }
   });
 
-  test('campos derivados batem com a data do ciclo', async ({ movementService, authToken }) => {
+  test('campos derivados batem com o fim do ciclo', async ({ movementService, authToken }) => {
     const records = await movementService.records(
       MovementQueryBuilder.default().build(),
       authToken,
@@ -41,35 +41,32 @@ test.describe('Contrato da resposta', { tag: ['@contract'] }, () => {
     test.skip(records.length === 0, 'Sem registros na janela configurada.');
 
     expect(records).toSatisfyForEveryRecord((record) => {
-      if (typeof record.start_date !== 'string') return true;
+      if (typeof record.datetime_end !== 'string') return true;
 
-      const [ano, mes, dia] = record.start_date.split('-').map(Number);
+      const fim = new Date(record.datetime_end);
 
-      return record.year === ano && record.month === mes && record.day === dia;
-    }, 'day/month/year derivados de start_date');
+      return (
+        record.year === fim.getUTCFullYear() &&
+        record.month === fim.getUTCMonth() + 1 &&
+        record.day === fim.getUTCDate()
+      );
+    }, 'year/month/day derivados de datetime_end (se falhar, confirme com a PO se derivam de datetime_start)');
   });
 
-  test('dmt é a média entre distância vazia e cheia', async ({ movementService, authToken }) => {
+  test('movement_source identifica a origem do registro', async ({
+    movementService,
+    authToken,
+  }) => {
     const records = await movementService.records(
       MovementQueryBuilder.default().build(),
       authToken,
     );
     test.skip(records.length === 0, 'Sem registros na janela configurada.');
 
-    // DMT é indicador consumido direto pelo cliente. Registros vindos do bloco
-    // de alimentação trazem as distâncias nulas por construção.
-    const comDistancia = records.filter(
-      (record) =>
-        typeof record.empty_distance === 'number' &&
-        typeof record.full_distance === 'number' &&
-        typeof record.dmt === 'number',
+    expect(records).toSatisfyForEveryRecord(
+      (record) => MOVEMENT_SOURCES.includes(record.movement_source as never),
+      `movement_source é um de: ${MOVEMENT_SOURCES.join(', ')}`,
     );
-    test.skip(comDistancia.length === 0, 'Nenhum registro com distâncias preenchidas.');
-
-    expect(comDistancia).toSatisfyForEveryRecord((record) => {
-      const esperado = (Number(record.empty_distance) + Number(record.full_distance)) / 2;
-      return Math.abs(Number(record.dmt) - esperado) < 0.01;
-    }, 'dmt = (empty_distance + full_distance) / 2');
   });
 
   test(

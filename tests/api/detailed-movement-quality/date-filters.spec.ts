@@ -54,7 +54,10 @@ test.describe('Filtros de data', { tag: ['@contract'] }, () => {
     }
   });
 
-  test('a janela filtra e é lida como dia-mês', async ({ movementService, authToken }) => {
+  test('a janela filtra por datetime_end e é lida como dia-mês', async ({
+    movementService,
+    authToken,
+  }) => {
     const dia = env.windows.ddmmDay;
     const esperado = apiDayToIso(dia);
 
@@ -70,17 +73,13 @@ test.describe('Filtros de data', { tag: ['@contract'] }, () => {
     );
 
     expect(records).toSatisfyForEveryRecord(
-      (record) => record.start_date === esperado,
-      `start_date = ${esperado} em todos os registros`,
+      (record) =>
+        typeof record.datetime_end === 'string' && record.datetime_end.startsWith(esperado),
+      `datetime_end começa em ${esperado} em todos os registros`,
     );
   });
 });
 
-/**
- * Regra vigente do critério de aceite: quando `dataIn` e `dataFi` são
- * informados, `last_update_timestamp` é desconsiderado. A implementação faz o
- * oposto — estes testes seguem o critério e ficam vermelhos até a correção.
- */
 test.describe('last_update_timestamp', { tag: ['@contract'] }, () => {
   test('sozinho, dispensa dataIn e dataFi', async ({ movementService, authToken }) => {
     const result = await movementService.fetch(
@@ -100,7 +99,6 @@ test.describe('last_update_timestamp', { tag: ['@contract'] }, () => {
       'Janela DATA_IN/DATA_FI sem registros. Ajuste o .env.',
     );
 
-    // Corte no futuro: se fosse considerado, zeraria o resultado.
     const comCorteFuturo = await movementService.fetchValid(
       { ...janela, last_update_timestamp: '01-01-2099 00:00:00' },
       authToken,

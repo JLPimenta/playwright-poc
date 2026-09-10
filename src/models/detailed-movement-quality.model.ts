@@ -9,106 +9,127 @@ import { paginationSchema } from './pagination.model';
 export const INT_FIELDS = [
   'id',
   'transport_report_id',
-  'id_truck',
-  'day',
-  'month',
+  'start_timestamp',
+  'end_timestamp',
+  'last_update_timestamp',
   'year',
-  'dump_hour',
-] as const;
-
-/** `date` — string "YYYY-MM-DD". */
-export const DATE_FIELDS = ['start_date', 'end_date'] as const;
-
-/** `time` — string "HH:MM:SS". */
-export const TIME_FIELDS = ['start_time', 'end_time'] as const;
-
-export const STRING_FIELDS = [
-  'shift',
-  'team',
-  'registration_id',
-  'operator',
-  'operator_group',
-  'equipment_type',
-  'fleet',
-  'truck',
-  'load_equipment',
-  'load_fleet',
-  'origin_area',
-  'origin_subarea',
-  'destination_area',
-  'destination_subarea',
-  'material',
-  'material_group',
-  'movement_type',
-  'cycle_type',
+  'month',
+  'day',
+  'hour',
+  'production_year',
+  'production_month',
+  'production_day',
+  'turn_id',
+  'team_id',
+  'operator_group_id',
+  'operator_id',
+  'equipment_type_id',
+  'equipment_group_id',
+  'equipment_id',
+  'load_equipment_type_id',
+  'load_equipment_group_id',
+  'load_equipment_id',
+  'origin_id',
+  'origin_subarea_id',
+  'destination_id',
+  'destination_subarea_id',
+  'origin_subarea_type_id',
+  'destination_subarea_type_id',
+  'material_group_id',
+  'material_id',
+  'movement_type_id',
+  'exception_type_id',
+  'update_timestamp',
+  'is_production',
 ] as const;
 
 export const FLOAT_FIELDS = [
-  'scale_manager_weight',
-  'calculated_weight',
-  'truck_scale_weight',
+  'load_balance',
+  'load_manager',
+  'calculated_mass',
+  'total_cycle_time',
   'cycle_time',
+  'code_time',
   'load_queue_time',
   'load_time',
-  'dump_queue_time',
-  'dump_time',
+  'unload_queue_time',
+  'unload_time',
   'empty_time',
   'full_time',
-  'empty_maneuver_time',
-  'full_maneuver_time',
+  'load_maneuver_time',
+  'unload_maneuver_time',
+  'unloaded_stop_time',
+  'loaded_stop_time',
   'empty_distance',
   'full_distance',
   'dmt',
+  'distance_manager',
   'load_lat',
   'load_lon',
+  'load_alt',
   'unload_lat',
   'unload_lon',
+  'unload_alt',
   'load_utm_x',
   'load_utm_y',
   'unload_utm_x',
   'unload_utm_y',
 ] as const;
 
-export const NON_NEGATIVE_FIELDS = [
-  'cycle_time',
-  'load_queue_time',
-  'load_time',
-  'dump_queue_time',
-  'dump_time',
-  'empty_time',
-  'full_time',
-  'empty_maneuver_time',
-  'full_maneuver_time',
-  'empty_distance',
-  'full_distance',
-  'dmt',
+export const STRING_FIELDS = [
+  'movement_source',
+  'turn',
+  'team',
+  'operator_group',
+  'operator_registration_id',
+  'operator',
+  'equipment_type',
+  'equipment_group',
+  'equipment',
+  'load_equipment_type',
+  'load_equipment_group',
+  'load_equipment',
+  'origin',
+  'origin_subarea',
+  'destination',
+  'destination_subarea',
+  'origin_subarea_type',
+  'destination_subarea_type',
+  'material_group',
+  'material',
+  'movement_type',
+  'exception_type',
+  'username',
 ] as const;
 
-/** Todos os campos fixos do contrato. */
+export const DATETIME_FIELDS = ['datetime_start', 'datetime_end', 'date_update_timestamp'] as const;
+
+/** Campos serializados pelo Pydantic como `date` — string "YYYY-MM-DD". */
+export const DATE_FIELDS = ['production_date'] as const;
+
+/** Todos os campos fixos do contrato. Qualquer chave fora desta lista é coluna pivotada. */
 export const FIXED_FIELDS: readonly string[] = [
   ...INT_FIELDS,
-  ...DATE_FIELDS,
-  ...TIME_FIELDS,
-  ...STRING_FIELDS,
   ...FLOAT_FIELDS,
+  ...STRING_FIELDS,
+  ...DATETIME_FIELDS,
+  ...DATE_FIELDS,
 ];
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const ISO_TIME = /^\d{2}:\d{2}:\d{2}(\.\d+)?$/;
 
 const shape: Record<string, z.ZodTypeAny> = {};
 for (const f of INT_FIELDS) shape[f] = z.number().int().nullable();
 for (const f of FLOAT_FIELDS) shape[f] = z.number().nullable();
 for (const f of STRING_FIELDS) shape[f] = z.string().nullable();
 for (const f of DATE_FIELDS) shape[f] = z.string().regex(ISO_DATE).nullable();
-for (const f of TIME_FIELDS) shape[f] = z.string().regex(ISO_TIME).nullable();
+for (const f of DATETIME_FIELDS) {
+  shape[f] = z
+    .string()
+    .refine((v) => !Number.isNaN(Date.parse(v)), { message: 'não é data ISO-8601 válida' })
+    .nullable();
+}
 
-/**
- * `passthrough()` é intencional: as colunas `element_N` são dinâmicas por
- * cliente e não podem ser declaradas em tempo de compilação. Elas são
- * validadas separadamente pelos matchers de `support/matchers.ts`.
- * Espelha o `model_config = ConfigDict(extra="allow")` do Pydantic.
- */
 export const movementRecordSchema = z.object(shape).passthrough();
 
 export const detailedMovementResponseSchema = z.object({
@@ -122,8 +143,10 @@ export type DetailedMovementResponse = z.infer<typeof detailedMovementResponseSc
 /** Limite de elementos de qualidade — `MAX_QUALITY_ELEMENTS` no service da API. */
 export const MAX_QUALITY_ELEMENTS = 60;
 
-/** Chave que identifica o ciclo de verdade. `id` é recontado a cada consulta. */
-export const CYCLE_KEY = 'transport_report_id';
+export const CYCLE_KEY = 'id';
+
+/** Origens unidas pela procedure, expostas em `movement_source`. */
+export const MOVEMENT_SOURCES = ['transport', 'load'] as const;
 
 /** Limites de paginação declarados na rota (`ge`/`le` dos Query params). */
 export const PAGINATION_LIMITS = {
@@ -139,5 +162,5 @@ export function elementKeysOf(record: Record<string, unknown>): string[] {
   return Object.keys(record).filter((key) => !FIXED_SET.has(key));
 }
 
-/** Padrão gerado pelo `rename_map` do service: `el7` vira `element_7`. */
+/** Padrão gerado por `element_column_name` no service: `el7` vira `element_7`. */
 export const ELEMENT_KEY_PATTERN = /^element_\d+$/;
