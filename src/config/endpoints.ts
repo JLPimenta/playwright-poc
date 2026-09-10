@@ -9,6 +9,7 @@ export const endpoints = {
   reports: {
     detailedMovementWithQuality: `${V1}/detailed_movement_with_quality`,
     transportReport: `${V1}/transport_report`,
+    fuelManagement: `${V1}/fuel_management`,
   },
 
   docs: {

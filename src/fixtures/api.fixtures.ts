@@ -7,6 +7,7 @@ import { env } from '@config/env';
 import { HttpClient } from '@core/http-client';
 import { AuthService } from '@services/auth.service';
 import { DetailedMovementQualityService } from '@services/detailed-movement-quality.service';
+import { FuelManagementService } from '@services/fuel-management.service';
 
 interface WorkerFixtures {
   authToken: string;
@@ -17,6 +18,7 @@ interface TestFixtures {
   http: HttpClient;
   authService: AuthService;
   movementService: DetailedMovementQualityService;
+  fuelService: FuelManagementService;
 
   /** Contexto sem `Authorization`, para os testes de autenticação. */
   anonymousHttp: HttpClient;
@@ -55,6 +57,10 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
 
   movementService: async ({ http }, use) => {
     await use(new DetailedMovementQualityService(http));
+  },
+
+  fuelService: async ({ http }, use) => {
+    await use(new FuelManagementService(http));
   },
 });
 

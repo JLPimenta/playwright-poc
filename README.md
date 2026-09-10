@@ -5,13 +5,6 @@ fluxos E2E do sistema.
 
 Este documento é sobre **arquitetura, padrões e como escrever testes aqui**. O
 que é específico de um endpoint vive em `docs/`.
-
-| Documento                                                              | Conteúdo                                                              |
-| ---------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Este README                                                            | Arquitetura, camadas, convenções, como adicionar testes               |
-| [docs/DETAILED-MOVEMENT-QUALITY.md](docs/DETAILED-MOVEMENT-QUALITY.md) | Contrato, cobertura e massa do endpoint de movimentação com qualidade |
-| [docs/BUGS-ENCONTRADOS.md](docs/BUGS-ENCONTRADOS.md)                   | Achados da revisão de código da API                                   |
-
 ---
 
 ## Começando
@@ -411,6 +404,38 @@ escondida ali.
 
 Títulos de teste descrevem **comportamento**, não mecânica. `'retorna 400 quando
 dataIn > dataFi'` é melhor que `'testa validação de data'`.
+
+### Comentários
+
+Comentário explica **por quê**, nunca **o quê**. Se o nome da função, o título
+do teste ou a mensagem de asserção já dizem, o comentário é ruído: ocupa
+espaço, envelhece sem ninguém notar e treina o leitor a pular a leitura.
+
+Escreva um comentário só quando o leitor não conseguir chegar sozinho à razão:
+uma decisão contraintuitiva, um comportamento da API que contraria a
+documentação, um `if` que existe por causa de um defeito conhecido.
+
+```ts
+// Ruim: repete a assinatura
+/** Chamada crua: não assume status nem formato. */
+async fetch(query, token) { ... }
+
+// Bom: explica um desvio que ninguém adivinha lendo o código
+// Sem registros esta rota responde 204, não 200 com lista vazia.
+if (result.status === 204) { ... }
+```
+
+Antes de comentar, veja se o lugar certo não é outro:
+
+| Se você quer explicar…                    | Escreva em…                             |
+| ----------------------------------------- | --------------------------------------- |
+| O que o teste verifica                    | O título do teste                       |
+| Por que a falha importa e o que fazer     | A mensagem da asserção                  |
+| Regra de negócio, contrato, comportamento | `docs/<endpoint>.md`                    |
+| Defeito conhecido e seu impacto           | `docs/BUGS-*.md`, e cite o ID no código |
+
+O leitor de uma falha no CI vê a mensagem da asserção, não o comentário. É lá
+que o contexto rende.
 
 ### Tags
 

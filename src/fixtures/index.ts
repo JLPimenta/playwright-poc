@@ -8,5 +8,6 @@
 export { test } from './api.fixtures';
 export { expect } from '@support/matchers';
 export { MovementQueryBuilder, LIST_FILTERS, idsFor } from '@data/query.builder';
+export { FuelQueryBuilder } from '@data/fuel-query.builder';
 export { env } from '@config/env';
 export { endpoints } from '@config/endpoints';

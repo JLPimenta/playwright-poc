@@ -57,6 +57,11 @@ const envSchema = z.object({
 
   EXPECTED_ELEMENT_COUNT: int(-1),
 
+  /** Janela e equipamentos com massa de abastecimento conhecida. */
+  FUEL_DATA_IN: z.string().default('01-06-2026 00:00:00'),
+  FUEL_DATA_FI: z.string().default('30-06-2026 23:59:59'),
+  FUEL_EQUIP_IDS: csv,
+
   RATE_LIMIT_PER_MINUTE: int(10),
   RETRY_ON_RATE_LIMIT: bool,
   /** Timeout por requisição HTTP. Deve ser bem menor que o timeout do teste. */
@@ -112,6 +117,12 @@ export const env = {
 
   /** Número de elementos de qualidade cadastrados. -1 desativa a asserção exata. */
   expectedElementCount: raw.EXPECTED_ELEMENT_COUNT,
+
+  /** Massa do endpoint de abastecimento. */
+  fuel: {
+    window: { dataIn: raw.FUEL_DATA_IN, dataFi: raw.FUEL_DATA_FI },
+    equipIds: raw.FUEL_EQUIP_IDS,
+  },
 
   rateLimit: {
     perMinute: raw.RATE_LIMIT_PER_MINUTE,
